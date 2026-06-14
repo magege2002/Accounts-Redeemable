@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Valigate</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<div class="session-banner" id="sessionBanner">
+  <span class="sb-dot"></span>
+  <span class="sb-stat">Server running on <strong>localhost:3000</strong></span>
+  <span class="sb-stat">Staging entries: <strong id="sb-count">—</strong></span>
+  <span class="sb-stat">Total billable: <strong id="sb-billable">—</strong></span>
+  <span class="sb-time" id="sb-time"></span>
+</div>
+
+<div class="top-nav">
+  <div class="brand">Valigate</div>
+  <div class="nav-tab active" data-section="capture" onclick="switchSection('capture')">
+    <span class="step-num">1</span> Capture
+  </div>
+  <div class="nav-tab" data-section="review" onclick="switchSection('review')">
+    <span class="step-num">2</span> Review
+  </div>
+  <div class="nav-tab" data-section="export" onclick="switchSection('export')">
+    <span class="step-num">3</span> Export
+  </div>
+  <div class="nav-tab" data-section="audit" onclick="switchSection('audit')">
+    <span class="step-num">4</span> Audit
+  </div>
+  <div class="nav-tab" data-section="archive" onclick="switchSection('archive')">
+    <span class="step-num">5</span> Archive
+  </div>
+  <div class="nav-spacer"></div>
+  <button class="settings-btn" onclick="openSettings()">⚙ Settings</button>
+</div>
+
+<div class="main">
+
+<!-- SECTION 1: CAPTURE -->
+<div id="sec-capture" class="section active">
+  <!-- Title row — scrolls away; NOT sticky -->
+  <div class="section-header" id="capturePageHeader">
+    <div>
+      <div class="section-title">Capture</div>
+      <div class="section-sub">Import raw time entries from any source into the staging table</div>
+    </div>
+  </div>
+
+  <!-- Sticky control bar — always visible while scrolling in Capture -->
+  <div id="captureControlBar" class="capture-ctrl-bar">
+    <div class="ctrl-bar-left">
+      <button class="btn btn-sm btn-ghost" id="validationPassBtn" onclick="runValidationPass()" title="Run all validation checks across staging entries (description length, confidentiality risks, estimated time)">🔍 Validation Pass</button>
+      <button class="btn btn-sm btn-ghost" id="refineNRBtn" onclick="refineNeedsReview()" title="Re-parse all Needs Review entries through the Panel A AI parser to improve descriptions and categories">⟳ Refine Needs Review</button>
+      <div id="capture-baseline-pill" style="display:none;align-items:center;gap:6px;background:rgba(149,128,205,.12);border:1px solid rgba(149,128,205,.34);border-radius:20px;padding:4px 12px;font-size:12px;color:#cbbdf0;font-weight:500">
+        <span style="width:6px;height:6px;border-radius:50%;background:#b9a4ef;display:inline-block;flex-shrink:0"></span>
+        Baseline: <span id="capture-baseline-count">0</span> entries<span id="capture-baseline-filename" style="opacity:0.65;font-weight:400;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      </div>
+    </div>
+    <div id="captureStats" class="capture-stats"></div>
+    <div class="ctrl-bar-right">
+      <button class="btn btn-sm" id="openQABtn" onclick="_openQADropdown('activity')" title="Quick-add an activity time entry">⊕ Activity</button>
+      <button class="btn btn-sm" id="openQEBtn" onclick="_openQADropdown('expense')" title="Quick-add an expense entry" style="background:var(--amber-bg);color:var(--amber);border-color:#d4a853">⊕ Expense</button>
+    </div>
+  </div>
+
+  <!-- Baseline active banner -->
+  <div class="baseline-banner" id="baselineBanner">
+    <div class="bb-left">
+      <span class="bb-dot"></span>
+      <span>Billing Period Baseline active — <strong><span id="baseline-count">0</span> Clio entries</strong><span id="baseline-filename" style="font-weight:400;font-style:italic;margin-left:4px"></span> loaded. Staging entries that match will be flagged <span class="badge badge-clio" style="font-size:11px">Already in Clio</span>.</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="clearBaseline()">Clear Baseline</button>
+  </div>
+
+  <div class="panels">
+
+    <!-- Panel A — Manual + Docx -->
+    <div class="card">
+      <div class="card-title">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Manual Time Entries
+      </div>
+      <textarea id="rawNotes" placeholder="Paste raw notes here — any format&#10;e.g. 0.2 - Drafted demand letter - Lewis - Mon 9am&#10;e.g. .1 phone call Alfonso re: deposition&#10;e.g. Adams - 0.3 - Reviewed billing statement"></textarea>
+      <div class="panel-row" style="margin-top:10px">
+        <button class="btn btn-primary" style="flex:1" onclick="parseEntries()">Parse Entries</button>
+        <button class="btn btn-ghost" onclick="attachDocxA()" title="Attach a .docx file — text will be extracted and placed in the area above">📎 Docx</button>
+      </div>
+      <div id="parse-status" class="docx-label"></div>
+    </div>
+
+    <!-- Panel B — Screenshots + Text + Docx -->
+    <div class="card">
+      <div class="card-title">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        Screenshots / Call Logs
+      </div>
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('imgInput').click()"
+        ondragover="event.preventDefault();this.classList.add('dragover')"
+        ondragleave="this.classList.remove('dragover')"
+        ondrop="handleDrop(event)">
+        <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Drop screenshots here or click to upload
+        <div style="font-size:11px;margin-top:4px;opacity:0.7">Multiple files supported</div>
+      </div>
+      <input type="file" id="imgInput" accept="image/*" multiple style="display:none" onchange="handleImgSelect(event)" />
+      <div class="thumb-grid" id="thumbGrid"></div>
+      <textarea id="panelBText" placeholder="Paste VXT thread text or compiled call log here (optional)" style="margin-top:10px;min-height:70px"></textarea>
+      <div class="panel-row" style="margin-top:8px">
+        <button class="btn btn-primary" style="flex:1" onclick="extractScreenshots()">Extract Billing Entries</button>
+        <button class="btn btn-ghost" onclick="attachDocxB()" title="Attach a .docx file — text will be extracted into the text area above">📎 Docx</button>
+      </div>
+      <div id="extract-status" class="docx-label"></div>
+    </div>
+
+    <!-- Panel C — Activity Quick Add (Time) -->
+    <div class="card">
+      <div class="card-title">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Activity Quick Add
+      </div>
+      <div class="quick-grid">
+        <div>
+          <div class="form-label">Matter #</div>
+          <select id="qa-matter" onchange="qaFillMatter()">
+            <option value="">-- Select --</option>
+          </select>
+        </div>
+        <div>
+          <div class="form-label">Client</div>
+          <input type="text" id="qa-client" readonly placeholder="Auto-filled" style="background:var(--s1);color:var(--tx3)" />
+        </div>
+        <div style="grid-column:1/-1">
+          <div class="form-label">Task Description</div>
+          <input type="text" id="qa-desc" placeholder="What was done?" />
+        </div>
+        <div>
+          <div class="form-label">Duration (hrs)</div>
+          <input type="number" id="qa-dur" step="0.1" min="0.1" value="0.1" />
+        </div>
+        <div>
+          <div class="form-label">Date</div>
+          <input type="date" id="qa-date" />
+        </div>
+        <div>
+          <div class="form-label">Type</div>
+          <select id="qa-type"><option>Time</option><option>Expense</option></select>
+        </div>
+        <div>
+          <div class="form-label">Rate</div>
+          <input type="number" id="qa-rate" readonly placeholder="Auto" style="background:var(--s1);color:var(--tx3)" />
+        </div>
+      </div>
+      <button class="btn btn-success" style="margin-top:12px;width:100%" onclick="quickAdd()">+ Add Time Entry</button>
+    </div>
+
+    <!-- Panel D — Expense Quick Add -->
+    <div class="card">
+      <div class="card-title">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        Expense Quick Add
+      </div>
+      <div class="quick-grid">
+        <div>
+          <div class="form-label">Matter #</div>
+          <select id="qe-matter" onchange="qeFilMatter()">
+            <option value="">-- Select --</option>
+          </select>
+        </div>
+        <div>
+          <div class="form-label">Client</div>
+          <input type="text" id="qe-client" readonly placeholder="Auto-filled" style="background:var(--s1);color:var(--tx3)" />
+        </div>
+        <div style="grid-column:1/-1">
+          <div class="form-label">Description</div>
+          <input type="text" id="qe-desc" placeholder="Expense description" />
+        </div>
+        <div>
+          <div class="form-label">Amount ($)</div>
+          <input type="number" id="qe-amount" step="0.01" min="0" placeholder="0.00" />
+        </div>
+        <div>
+          <div class="form-label">Date</div>
+          <input type="date" id="qe-date" />
+        </div>
+        <div style="grid-column:1/-1">
+          <div class="form-label">Vendor Name</div>
+          <input type="text" id="qe-vendor" placeholder="Vendor (optional)" />
+        </div>
+      </div>
+      <button class="btn btn-amber" style="margin-top:12px;width:100%" onclick="quickAddExpense()">+ Add Expense</button>
+    </div>
+
+  </div><!-- /panels -->
+
+  <!-- Staging Table -->
+  <div class="card" style="padding:0">
+    <div id="stagingTableHeader" style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:600;color:var(--navy);font-size:14px">Staging Table</div>
+      <button class="btn btn-ghost btn-sm" onclick="clearStaging()">Clear All</button>
+    </div>
+    <div id="captureSearchBar" class="staging-search-bar">
+      <div class="search-input-wrap">
+        <input id="captureSearchInput" class="search-input" type="text" autocomplete="off"
+          placeholder="Search entries — matter, client, description, date, category…"
+          oninput="_onSearchInput(this.value)"
+          onkeydown="_onSearchKeydown(event)">
+        <button id="captureSearchClear" class="search-clear-btn" onclick="_clearSearch()" title="Clear search (Esc)">×</button>
+      </div>
+      <button class="search-filter-btn" onclick="_enterIsolation()" title="Filter table to matching entries (Enter)">Filter ↵</button>
+      <span id="captureSearchHint" class="search-results-hint"></span>
+      <div id="captureSearchDropdown" class="search-dropdown" style="display:none"></div>
+    </div>
+    <div class="staging-wrap">
+      <table id="stagingTable">
+        <thead id="stagingHead"></thead>
+        <tbody id="stagingBody"></tbody>
+      </table>
+    </div>
+    <div id="deletedTraySection"></div>
+  </div>
+</div>
+
+<!-- SECTION 2: REVIEW -->
+<div id="sec-review" class="section">
+  <!-- Title row — scrolls away; NOT sticky -->
+  <div class="section-header" id="reviewPageHeader">
+    <div>
+      <div class="section-title">Review</div>
+      <div class="section-sub">Approve entries by matter group before export</div>
+    </div>
+  </div>
+
+  <!-- Sticky control bar — always visible while scrolling in Review -->
+  <div id="reviewControlBar" class="review-ctrl-bar">
+    <div class="review-ctrl-top">
+      <div class="ctrl-bar-left">
+        <button class="btn btn-success btn-sm" onclick="approveAll()">✓ Approve All Ready</button>
+      </div>
+      <div id="reviewStats" class="capture-stats"></div>
+    </div>
+    <div id="reviewSearchBar" class="staging-search-bar">
+      <div class="search-input-wrap">
+        <input id="reviewSearchInput" class="search-input" type="text" autocomplete="off"
+          placeholder="Search entries — matter, client, description, date, category…"
+          oninput="_onSearchInput(this.value)"
+          onkeydown="_onSearchKeydown(event)">
+        <button id="reviewSearchClear" class="search-clear-btn" onclick="_clearSearch()" title="Clear search (Esc)">×</button>
+      </div>
+      <button class="search-filter-btn" onclick="_enterIsolation()" title="Filter review to matching entries (Enter)">Filter ↵</button>
+      <span id="reviewSearchHint" class="search-results-hint"></span>
+      <div id="reviewSearchDropdown" class="search-dropdown" style="display:none"></div>
+    </div>
+  </div>
+
+  <div id="warningBanners"></div>
+  <div id="reviewGroups"></div>
+</div>
+
+<!-- SECTION 3: EXPORT -->
+<div id="sec-export" class="section">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Export</div>
+      <div class="section-sub">Generate Clio-formatted CSVs for import</div>
+    </div>
+  </div>
+  <div class="export-grid">
+    <div>
+      <!-- Column specs -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Column Mapping</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:600">Activities</div>
+        <div style="background:#f8f9fb;border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11px;font-family:monospace;line-height:1.8;color:var(--navy);margin-bottom:10px">
+          matter | date | quantity | price | type | activity_user | activity_description | note
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:600">Expenses</div>
+        <div style="background:#f8f9fb;border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11px;font-family:monospace;line-height:1.8;color:var(--navy);margin-bottom:10px">
+          matter | date | quantity | price | type | activity_description | vendor_name | note
+        </div>
+        <div style="font-size:11px;color:var(--text-muted)">
+          <strong>note</strong> = full description &nbsp;·&nbsp; <strong>activity_description</strong> = short category &nbsp;·&nbsp; <strong>activity_user</strong> = Michael Agege (hardcoded)
+        </div>
+      </div>
+
+      <!-- Validation + downloads -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Validation &amp; Download</div>
+        <div id="validationResults" style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Click Validate to check all rows.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="validateCSV()">Validate</button>
+          <button class="btn btn-primary" onclick="generatePreview()">Preview</button>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-success" onclick="downloadActivities()">⬇ Activities CSV</button>
+          <button class="btn btn-amber" style="border:none" onclick="downloadExpenses()">⬇ Expenses CSV</button>
+        </div>
+      </div>
+
+      <!-- Clio upload step guides -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600;color:var(--navy);font-size:13px">
+          Clio Import Instructions
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+          <!-- Activities guide -->
+          <div style="padding:14px 16px;border-right:1px solid var(--border)">
+            <div style="font-weight:700;font-size:12px;color:var(--navy);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">Activities Upload</div>
+            <ol style="margin:0;padding-left:16px;font-size:12px;line-height:2;color:var(--text)">
+              <li>Download <strong>Activities CSV</strong> from AR above</li>
+              <li>Go to <a href="https://app.clio.com/nc/#/settings?path=imports" target="_blank" style="color:var(--navy)">app.clio.com → Settings → Imports</a></li>
+              <li>Click <strong>Add</strong> in the top right corner</li>
+              <li>In the Import dropdown select <strong>Activities from CSV</strong></li>
+              <li>In the User dropdown select <strong>Me</strong></li>
+              <li>Click <strong>Choose File</strong> and select your Activities CSV</li>
+              <li>Click <strong>Upload File</strong></li>
+            </ol>
+          </div>
+          <!-- Expenses guide -->
+          <div style="padding:14px 16px">
+            <div style="font-weight:700;font-size:12px;color:var(--navy);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">Expenses Upload</div>
+            <ol style="margin:0;padding-left:16px;font-size:12px;line-height:2;color:var(--text)">
+              <li>Download <strong>Expenses CSV</strong> from AR above</li>
+              <li>Go to <a href="https://app.clio.com/nc/#/settings?path=imports" target="_blank" style="color:var(--navy)">app.clio.com → Settings → Imports</a></li>
+              <li>Click <strong>Add</strong> in the top right corner</li>
+              <li>In the Import dropdown select <strong>Activities from CSV</strong> <em style="color:var(--text-muted)">(expenses use this option too)</em></li>
+              <li>In the User dropdown select <strong>Me</strong></li>
+              <li>Click <strong>Choose File</strong> and select your Expenses CSV</li>
+              <li>Click <strong>Upload File</strong></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview pane -->
+    <div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-weight:600;color:var(--navy);font-size:13px">Preview (first 10 rows)</span>
+          <div class="toggle-group">
+            <button id="prev-all"        class="toggle-btn active" onclick="setPreviewFilter('all')">All</button>
+            <button id="prev-activities" class="toggle-btn"        onclick="setPreviewFilter('activities')">Activities</button>
+            <button id="prev-expenses"   class="toggle-btn"        onclick="setPreviewFilter('expenses')">Expenses</button>
+          </div>
+        </div>
+        <div class="preview-table-wrap">
+          <table id="previewTable" style="font-size:11px;min-width:600px">
+            <thead id="previewHead">
+              <tr>
+                <th>matter</th><th>date</th><th>quantity</th><th>price</th><th>type</th><th>activity_user</th><th>activity_description</th><th>note</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody">
+              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px">Click Preview to generate</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4: AUDIT -->
+<div id="sec-audit" class="section">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Audit</div>
+      <div class="section-sub">Upload a CSV or PDF invoice for AI-powered billing analysis</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+
+    <!-- Mode 1 — AR Export Audit -->
+    <div>
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:6px">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          AR Export Audit
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+          Compares an uploaded CSV or PDF against <strong>current AR staging entries and archived export cycles</strong>. Flags duplicates, missing entries, rate mismatches, and swapped columns.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="arAuditFile" accept=".csv,.pdf" style="display:none" onchange="arAuditFileSelected(event)" />
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('arAuditFile').click()">📎 Choose File</button>
+          <span id="ar-audit-filename" style="font-size:12px;color:var(--text-muted);font-style:italic">No file selected</span>
+          <button class="btn btn-primary btn-sm" onclick="runArAudit()">Run Audit</button>
+        </div>
+        <div id="ar-audit-status" style="margin-top:8px;font-size:12px;color:var(--text-muted)"></div>
+      </div>
+      <div id="arAuditResults" style="display:none">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--navy);font-size:12px" id="arAuditResultsHeader">AR Audit Results</div>
+          <div id="arAuditTable"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mode 2 — General Invoice Audit -->
+    <div>
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:6px">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          General Invoice Audit
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+          Audits <strong>any CSV or PDF invoice on its own merits</strong> — including exports from Kerry, Farah, or other users. Flags duplicates within the file, missing matter assignments, rate anomalies, and swapped columns. Does not compare against AR records.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="genAuditFile" accept=".csv,.pdf" style="display:none" onchange="genAuditFileSelected(event)" />
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('genAuditFile').click()">📎 Choose File</button>
+          <span id="gen-audit-filename" style="font-size:12px;color:var(--text-muted);font-style:italic">No file selected</span>
+          <button class="btn btn-primary btn-sm" onclick="runGenAudit()">Run Audit</button>
+        </div>
+        <div id="gen-audit-status" style="margin-top:8px;font-size:12px;color:var(--text-muted)"></div>
+      </div>
+      <div id="genAuditResults" style="display:none">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--navy);font-size:12px" id="genAuditResultsHeader">General Audit Results</div>
+          <div id="genAuditTable"></div>
+        </div>
+      </div>
+    </div>
+
+  <!-- Billing Period Baseline -->
+  <div class="card" style="margin-top:4px">
+    <div class="card-title">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Billing Period Baseline
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+      Upload a CSV export of entries <strong>already recorded in Clio</strong> for the current billing period. AR will flag any matching staging entries with an <span class="badge badge-clio" style="font-size:11px">Already in Clio</span> badge during Review — keeping this separate from internal Probable Duplicate detection. Baseline is session-only and never written to the database.
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input type="file" id="baselineFile" accept=".csv" style="display:none" onchange="loadBaseline(event)" />
+      <button class="btn btn-ghost" onclick="document.getElementById('baselineFile').click()">📋 Load Baseline CSV</button>
+      <span id="baseline-status" style="font-size:12px;color:var(--text-muted);font-style:italic">No baseline loaded</span>
+      <button class="btn btn-ghost btn-sm" id="baseline-clear-btn" style="display:none;color:#7c3aed;border-color:#c4b5fd" onclick="clearBaseline()">Clear</button>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+<!-- SECTION 5: ARCHIVE -->
+<div id="sec-archive" class="section">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Archive</div>
+      <div class="section-sub">All exported billing cycles — persisted in SQLite</div>
+    </div>
+  </div>
+  <div id="archiveList"></div>
+  <div class="totals-bar" id="archiveTotals">
+    <div><div class="t-label">Cumulative Hours</div><div class="t-val" id="arc-hours">0.0</div></div>
+    <div><div class="t-label">Cumulative Billable</div><div class="t-val" id="arc-bill">$0.00</div></div>
+    <div><div class="t-label">Cycles Exported</div><div class="t-val" id="arc-count">0</div></div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Settings — Matter Reference List</h2>
+      <button class="close-btn" onclick="closeSettings()">×</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <input type="text" id="new-matter-num" placeholder="Matter # (e.g. 00060-Smith)" style="width:180px" />
+      <input type="text" id="new-matter-client" placeholder="Client Name" style="flex:1;min-width:120px" />
+      <input type="number" id="new-matter-rate" placeholder="Rate $" style="width:100px" />
+      <button class="btn btn-primary btn-sm" onclick="addMatter()">+ Add Matter</button>
+    </div>
+    <div class="staging-wrap">
+      <table id="matterTable">
+        <thead><tr><th>Matter #</th><th>Client Name</th><th>Rate</th><th>Status</th><th></th></tr></thead>
+        <tbody id="matterBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── CONFLICT DETAILS SIDEBAR ────────────────────────────────────────── -->
+<div id="conflictSidebar">
+  <div id="conflictSidebarHeader">
+    <!-- Row 1: title + primary action button + close -->
+    <div class="sb-hdr-row1">
+      <span class="sb-hdr-title">Entry Details</span>
+      <span id="sbQuickApproveSlot"></span>
+      <button class="sb-hdr-close-btn" onclick="closeConflictSidebar()" title="Close (Esc)">×</button>
+    </div>
+    <!-- Row 2: navigation / contextual buttons — always present, wraps as needed -->
+    <div class="sb-hdr-row2">
+      <button class="sb-find-btn" onclick="sidebarGoToEntry()" title="Find — scroll to this entry and highlight it">⌖ Find</button>
+      <span id="sbGotoOriginalSlot"></span>
+      <span id="sbEditSlot"></span>
+    </div>
+  </div>
+  <div id="conflictSidebarContent"></div>
+  <div id="conflictSidebarFooter"></div>
+</div>
+
+<!-- ── QUICK ADD DROPDOWNS (body-level, avoid overflow clipping) ─────────── -->
+
+<!-- Activity Quick Add dropdown -->
+<div id="qaDropdown" class="qa-dropdown" style="display:none">
+  <div class="qa-dd-header">
+    <span>⊕ Activity Quick Add</span>
+    <button class="qa-dd-close" onclick="_closeQADropdown()" title="Close">×</button>
+  </div>
+  <div class="qa-dd-body">
+    <div class="qa-dd-row">
+      <label>Matter</label>
+      <select id="qad-matter" onchange="_qadFillMatter()">
+        <option value="">-- Select --</option>
+      </select>
+    </div>
+    <div class="qa-dd-row">
+      <label>Description</label>
+      <input id="qad-desc" type="text" placeholder="What was done?" autocomplete="off"
+        onkeydown="if(event.key==='Enter')_qaDropdownSubmit('activity')">
+    </div>
+    <div class="qa-dd-row qa-dd-row-split">
+      <div>
+        <label>Duration (hrs)</label>
+        <input id="qad-dur" type="number" step="0.1" min="0.1" value="0.1">
+      </div>
+      <div>
+        <label>Date</label>
+        <input id="qad-date" type="date">
+      </div>
+    </div>
+  </div>
+  <div class="qa-dd-footer">
+    <button class="btn btn-sm btn-ghost" onclick="_closeQADropdown();document.querySelector('.panels').scrollIntoView({behavior:'smooth'})">Full form ↑</button>
+    <button class="btn btn-sm" style="background:var(--green-bg);color:var(--green);border:1px solid #b5d89a" onclick="_qaDropdownSubmit('activity')">+ Add Entry</button>
+  </div>
+</div>
+
+<!-- Expense Quick Add dropdown -->
+<div id="qeDropdown" class="qa-dropdown" style="display:none">
+  <div class="qa-dd-header">
+    <span>⊕ Expense Quick Add</span>
+    <button class="qa-dd-close" onclick="_closeQADropdown()" title="Close">×</button>
+  </div>
+  <div class="qa-dd-body">
+    <div class="qa-dd-row">
+      <label>Matter</label>
+      <select id="qed-matter">
+        <option value="">-- Select --</option>
+      </select>
+    </div>
+    <div class="qa-dd-row">
+      <label>Description</label>
+      <input id="qed-desc" type="text" placeholder="Expense description" autocomplete="off"
+        onkeydown="if(event.key==='Enter')_qaDropdownSubmit('expense')">
+    </div>
+    <div class="qa-dd-row qa-dd-row-split">
+      <div>
+        <label>Amount ($)</label>
+        <input id="qed-amount" type="number" step="0.01" min="0" placeholder="0.00">
+      </div>
+      <div>
+        <label>Date</label>
+        <input id="qed-date" type="date">
+      </div>
+    </div>
+  </div>
+  <div class="qa-dd-footer">
+    <button class="btn btn-sm btn-ghost" onclick="_closeQADropdown();document.querySelector('.panels').scrollIntoView({behavior:'smooth'})">Full form ↑</button>
+    <button class="btn btn-sm" style="background:var(--amber-bg);color:var(--amber);border:1px solid #d4a853" onclick="_qaDropdownSubmit('expense')">+ Add Expense</button>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

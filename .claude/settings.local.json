@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(node server.js)",
+      "Bash(curl -s http://localhost:3000/api/matters)",
+      "Bash(curl -s http://localhost:3000/api/entries)",
+      "Bash(kill %1)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'{len\\(d\\)} matters loaded, first: {d[0][\\\\\"num\\\\\"]}'\\)\")",
+      "Bash(curl -s http://localhost:3000/api/archive)",
+      "Bash(curl -s http://localhost:3000/api/export/validate)",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/entries -H 'Content-Type: application/json' -d '{\"matter\":\"00023-Lewis\",\"client\":\"Brenda Lewis\",\"date\":\"2026-05-15\",\"duration\":0.2,\"description\":\"Reviewed intake documents\",\"category\":\"Document review\",\"type\":\"Time\",\"rate\":30,\"status\":\"Ready\",\"source\":\"quick_add\"}')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Created entry id:', d.get\\('id'\\)\\)\")",
+      "Bash(node -e \"const {DatabaseSync}=require\\('node:sqlite'\\); const db=new DatabaseSync\\('db/ar.db'\\); db.exec\\(\\\\\"DELETE FROM staging_entries\\\\\"\\); console.log\\('staging cleared'\\);\")",
+      "Bash(curl -s http://localhost:3000/)"
+    ]
+  }
+}
