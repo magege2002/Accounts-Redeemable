@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
+const PROC_SUFFIX_RE = require('./proc-suffix');
 
 function q(v) {
   return `"${String(v).replace(/"/g, '""')}"`;
@@ -34,7 +35,7 @@ function activityRow(e) {
     q('TimeEntry'),
     q('Michael Agege'),
     q(safeCategory(e)),
-    q(e.description || ''),
+    q((e.description || '').replace(PROC_SUFFIX_RE, '').trim()),
   ].join(',');
 }
 
@@ -49,7 +50,7 @@ function expenseRow(e) {
     q('ExpenseEntry'),
     q(safeCategory(e)),
     q(e.vendor_name  || ''),
-    q(e.description  || ''),
+    q((e.description || '').replace(PROC_SUFFIX_RE, '').trim()),
   ].join(',');
 }
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
+const PROC_SUFFIX_RE = require('./proc-suffix');
 
 const VALID_CATEGORIES = [
   'Phone call', 'Text exchange', 'Document review',
@@ -14,7 +15,7 @@ function sanitize(e) {
     client:       String(e.client       || ''),
     date:         String(e.date         || new Date().toISOString().slice(0, 10)),
     duration:     parseFloat(e.duration)   || 0.1,
-    description:  String(e.description  || ''),
+    description:  String(e.description  || '').replace(PROC_SUFFIX_RE, '').trim(),
     category:     VALID_CATEGORIES.includes(e.category) ? e.category : 'Administrative',
     type:         e.type === 'Expense' ? 'Expense' : 'Time',
     rate:         parseFloat(e.rate)       || 0,

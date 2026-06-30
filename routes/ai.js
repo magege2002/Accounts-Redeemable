@@ -26,9 +26,8 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Regex strips procedural annotation suffixes the AI model might append to descriptions
-// despite explicit prompt instructions. Matches trailing " (split entry)", " (copy)", etc.
-const PROC_SUFFIX_RE = /\s*\((split\s*entry|split|copy|clone|cloned|duplicate)\)\s*$/i;
+// Shared regex that strips procedural annotation suffixes — defined once in proc-suffix.js
+const PROC_SUFFIX_RE = require('./proc-suffix');
 
 function buildParsedEntries(parsed, source, defaultCategory) {
   const today = todayStr();
