@@ -899,7 +899,53 @@ async function attachDocxB() {
   await attachDocx('panelBText', 'extract-status');
 }
 
-// ── PANEL C — QUICK ADD ────────────────────────────────────────────────────
+// ── PANEL C — VXT IMPORT ──────────────────────────────────────────────────
+async function parseVXT() {
+  const text = document.getElementById('vxtText').value.trim();
+  if (!text) return;
+  const status = document.getElementById('vxt-status');
+  status.innerHTML = '<span class="spin">⟳</span> Parsing with AI...';
+  try {
+    const { entries } = await api('POST', '/api/ai/parse-vxt', { text });
+    const saved = await api('POST', '/api/entries/batch', entries);
+    stagingEntries.push(...saved);
+    const flagged = saved.filter(e => e.status === 'Needs Review').length;
+    status.innerHTML = `✓ Added ${saved.length} entries (${flagged} need review)`;
+    document.getElementById('vxtText').value = '';
+    renderStagingTable();
+  } catch (e) {
+    status.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
+  }
+}
+
+async function attachVXTFile() {
+  return new Promise(resolve => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.md,.markdown,.txt,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    input.onchange = async () => {
+      if (!input.files.length) return resolve(null);
+      const file = input.files[0];
+      const ext = file.name.split('.').pop().toLowerCase();
+      const statusEl = document.getElementById('vxt-status');
+      if (ext === 'docx') {
+        resolve(await attachDocx('vxtText', 'vxt-status'));
+      } else {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const ta = document.getElementById('vxtText');
+          if (ta) ta.value = e.target.result;
+          if (statusEl) statusEl.innerHTML = `✓ Loaded ${file.name}`;
+          resolve(e.target.result || null);
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  });
+}
+
+// ── PANEL D — QUICK ADD ────────────────────────────────────────────────────
 function inferCategory(desc) {
   const d = (desc || '').toLowerCase();
   if (d.includes('call') || d.includes('phone'))                              return 'Phone call';

@@ -435,6 +435,116 @@ Return ONLY a valid JSON array. Your entire response must start with [ and end w
   }
 });
 
+// POST /api/ai/parse-vxt — VXT Import: structured markdown → staging entries (source:vxt)
+router.post('/parse-vxt', express.json({ limit: '2mb' }), async (req, res) => {
+  const { text } = req.body;
+  if (!text || !text.trim()) return res.status(400).json({ error: 'No text provided' });
+
+  const matters = getActiveMatters();
+  const matterList = matters.map(m => `${m.num} (${m.client})`).join(', ');
+  const today = todayStr();
+
+  const PROMPT_PREFIX = `**YOU MUST RESPOND WITH A VALID JSON ARRAY ONLY. No preamble, no explanation, no markdown, no code fences, no conversational text whatsoever. Your entire response must start with [ and end with ]. If you cannot parse an entry, include it in the array with needsReview: true. Never write any text outside the JSON array.**
+
+You are a legal billing parser for attorney Michael Agege. The input is already-clean structured VXT billing markdown produced by an external scrape — each blank-line-separated block is exactly one billable item. Do NOT re-filter missed calls or convert duration bands; the scrape has already done that.
+
+Today's date: ${today}
+Active matters: ${matterList}
+
+=== ENTRY BOUNDARIES ===
+Each blank-line-separated block is one billing entry. Never split a block into multiple entries.
+
+=== CATEGORY RULES ===
+Choose from EXACTLY these values — no others are valid:
+"Phone call" | "Text exchange" | "Document review" | "Research" | "Court filing" | "Administrative" | "Notes — Timed" | "Notes — Estimated"
+
+- Call-derived blocks → "Notes — Timed"
+- Text/SMS-derived blocks → "Text exchange"
+- If a block has no duration, use "Notes — Estimated" and set needsReview: true
+
+=== DURATION ===
+Use the duration already present in the block. Convert to decimal hours in 0.1 increments.
+If NO duration is present: use category "Notes — Estimated", generate a reasonable estimate, set needsReview: true.
+
+=== DATE PARSING ===
+Priority order: (1) explicit date in block → (2) today (${today}) as last resort.
+
+=== DESCRIPTION (invoice-ready — max 80 characters) ===
+1. Extract a concise 5–10 word summary of the core billable activity.
+2. Never include timestamps, date references, duration markers, or matter/client names in description.
+3. Maximum 80 characters. Truncate at nearest complete word if over.
+4. Return the complete original block text in raw_note — never bleed raw_note into description.
+5. Never append procedural annotations like "(split entry)", "(split)", "(copy)" etc. to description.
+
+=== MATTER MATCHING ===
+Match matter numbers from the active list by client surname or case context. If unclear, leave empty and set needsReview: true.
+
+=== ATTORNEY-CLIENT DESCRIPTION ISOLATION ===
+Each entry's description must contain ONLY information relevant to that specific client. Never include another client's name, matter, or case details in description.
+
+=== TEXT MESSAGE ENTRIES ===
+Bill at 0.1 hrs per simple exchange, 0.2–0.3 for substantive exchanges. Include sent/received count where identifiable.
+
+Return ONLY a JSON array, no markdown, no explanation:
+[{"matter":"","client":"","date":"YYYY-MM-DD","duration":0.1,"description":"","raw_note":"","category":"Notes — Timed","type":"Time","needsReview":false,"isSplit":false}]`;
+
+  const chunks = splitIntoChunks(text.trim());
+  console.log(`[parse-vxt] input ${text.length} chars → ${chunks.length} chunk(s)`);
+
+  try {
+    const allParsed = [];
+
+    for (let ci = 0; ci < chunks.length; ci++) {
+      const { context, lines } = chunks[ci];
+
+      const contextSection = context
+        ? `CONTEXT from previous section (already processed — do NOT produce entries for these lines; use only for date/matter continuity):\n${context}\n\n`
+        : '';
+
+      const content = `${PROMPT_PREFIX}\n\n${contextSection}VXT billing markdown:\n${lines}`;
+
+      const msg = await client.messages.create({
+        model: MODEL,
+        max_tokens: 8000,
+        messages: [{ role: 'user', content }],
+      });
+
+      let raw = msg.content.map(b => b.text || '').join('').replace(/```json|```/g, '').trim();
+      console.log(`[parse-vxt] chunk ${ci + 1}/${chunks.length} — response length: ${raw.length} chars`);
+
+      if (!raw.startsWith('[')) {
+        const bracketIdx = raw.indexOf('[');
+        if (bracketIdx === -1) {
+          console.error(`[parse-vxt] chunk ${ci + 1} — no JSON array found in response`);
+          console.error(`[parse-vxt] full response: ${raw}`);
+          throw new Error('AI returned an unexpected response format — try parsing a smaller batch.');
+        }
+        console.warn(`[parse-vxt] chunk ${ci + 1} — response had ${bracketIdx} chars of preamble before '['; slicing`);
+        raw = raw.slice(bracketIdx);
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (parseErr) {
+        console.error(`[parse-vxt] chunk ${ci + 1} JSON.parse failed`);
+        console.error(`[parse-vxt] response length: ${raw.length} chars`);
+        console.error(`[parse-vxt] last 200 chars: ...${raw.slice(-200)}`);
+        throw parseErr;
+      }
+
+      allParsed.push(...parsed);
+      console.log(`[parse-vxt] chunk ${ci + 1} yielded ${parsed.length} entries (running total: ${allParsed.length})`);
+    }
+
+    const entries = buildParsedEntries(allParsed, 'vxt', 'Notes — Timed');
+    res.json({ entries });
+  } catch (e) {
+    console.error('VXT parse error:', e);
+    res.status(500).json({ error: e.message || 'VXT parsing failed' });
+  }
+});
+
 // ── POST /api/ai/compress-description — shorten a description to ≤ 80 chars ─
 router.post('/compress-description', express.json(), async (req, res) => {
   const { description } = req.body || {};
