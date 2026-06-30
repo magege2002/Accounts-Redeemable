@@ -29,6 +29,8 @@ function todayStr() {
 // Shared regex that strips procedural annotation suffixes — defined once in proc-suffix.js
 const PROC_SUFFIX_RE = require('./proc-suffix');
 
+const CALL_LANG_RE = /call|phone|spoke|talked|rang|dialed|voicemail/i;
+
 function buildParsedEntries(parsed, source, defaultCategory) {
   const today = todayStr();
   return parsed.map(p => {
@@ -42,17 +44,24 @@ function buildParsedEntries(parsed, source, defaultCategory) {
     // Entry origin is conveyed by the source badge, never by the description field.
     const rawDesc = (p.description || '').trim();
     const description = rawDesc.replace(PROC_SUFFIX_RE, '').trim();
+    const raw_note = p.raw_note || '';
+    const needs_call_time = (
+      cat === 'Notes — Estimated' &&
+      (CALL_LANG_RE.test(raw_note) || CALL_LANG_RE.test(description))
+    ) ? 1 : 0;
     return {
-      matter:      p.matter  || '',
-      client:      m ? m.client : (p.client || ''),
-      date:        p.date    || today,
-      duration:    parseFloat(p.duration) || 0.1,
+      matter:          p.matter  || '',
+      client:          m ? m.client : (p.client || ''),
+      date:            p.date    || today,
+      duration:        parseFloat(p.duration) || 0.1,
       description,
-      category:    cat,
-      type:        p.type === 'Expense' ? 'Expense' : 'Time',
-      rate:        m ? m.rate : 0,
-      status:      p.needsReview ? 'Needs Review' : 'Ready',
-      source:      effectiveSource,
+      category:        cat,
+      type:            p.type === 'Expense' ? 'Expense' : 'Time',
+      rate:            m ? m.rate : 0,
+      status:          p.needsReview ? 'Needs Review' : 'Ready',
+      source:          effectiveSource,
+      raw_note,
+      needs_call_time,
     };
   });
 }

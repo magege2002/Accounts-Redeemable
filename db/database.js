@@ -27,7 +27,7 @@ db.exec(`
     type TEXT NOT NULL DEFAULT 'Time',
     rate REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'Ready',
-    source TEXT NOT NULL DEFAULT 'manual', -- valid: panel_a, panel_b, wisetime, notabill, split, call_log, cloned, manual
+    source TEXT NOT NULL DEFAULT 'manual', -- valid: panel_a, panel_b, wisetime, notabill, split, call_log, cloned, manual, vxt
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -80,6 +80,10 @@ if (count.c === 0) {
     db.exec("ALTER TABLE staging_entries ADD COLUMN expense_type TEXT NOT NULL DEFAULT 'HardCostEntry'");
   if (!entryCols.includes('vendor_name'))
     db.exec("ALTER TABLE staging_entries ADD COLUMN vendor_name TEXT NOT NULL DEFAULT ''");
+  if (!entryCols.includes('raw_note'))
+    db.exec("ALTER TABLE staging_entries ADD COLUMN raw_note TEXT NOT NULL DEFAULT ''");
+  if (!entryCols.includes('needs_call_time'))
+    db.exec("ALTER TABLE staging_entries ADD COLUMN needs_call_time INTEGER NOT NULL DEFAULT 0");
 
   const archiveCols = db.prepare('PRAGMA table_info(archive_cycles)').all().map(c => c.name);
   if (!archiveCols.includes('cycle_type'))
