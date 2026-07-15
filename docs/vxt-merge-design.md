@@ -23,7 +23,7 @@ router.post('/merge-vxt', (req, res) => {
       'SELECT * FROM staging_entries WHERE needs_call_time = 1'
     ).all();
     const matchStmt = db.prepare(
-      "SELECT * FROM staging_entries WHERE source = 'vxt' AND matter = ? AND date = ?"
+      "SELECT * FROM staging_entries WHERE source = 'vxt' AND matter = ? AND date = ? AND needs_call_time = 0"
     );
     const updateStmt = db.prepare(
       'UPDATE staging_entries SET duration = ?, needs_call_time = 0 WHERE id = ?'
@@ -51,9 +51,20 @@ BEGIN/COMMIT/ROLLBACK wrapper).
 
 ### Matching key
 
-**Matter + date, exact string equality.** Both columns are plain `TEXT` (matter is the human
-matter number like `00039-Evans`, date is `YYYY-MM-DD`). No fuzzy matching, no time-of-day
-component, no client-name fallback.
+**Matter + date, exact string equality, plus `needs_call_time = 0` on the VXT side.** Both matter
+and date columns are plain `TEXT` (matter is the human matter number like `00039-Evans`, date is
+`YYYY-MM-DD`). No fuzzy matching, no time-of-day component, no client-name fallback.
+
+The `needs_call_time = 0` filter on the match query is load-bearing, not incidental — it was added
+after an end-of-run adversarial review caught that `buildParsedEntries()` (`routes/ai.js`) can set
+`needs_call_time = 1` on `source: 'vxt'` rows too (a scraped call block with no duration still
+reads as call-language). Without the filter, a `source: 'vxt'` candidate with no other VXT row on
+its matter/date would match *itself* — silently "merging" against its own unchanged duration and
+clearing its own flag, which looks like a resolved entry but never received any real corroborating
+data. The filter also prevents an unconfirmed VXT estimate from ever getting pulled onto a Panel A
+row as if it were scrape-derived ground truth. Verified live post-fix: a synthetic
+`source:'vxt', needs_call_time:1` row with a unique matter/date came back in neither `merged` nor
+`ambiguous` — correctly a silent no-op.
 
 ### Exactly-one-match → auto-merge
 

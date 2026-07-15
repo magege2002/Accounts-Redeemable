@@ -92,7 +92,10 @@ router.put('/:id', (req, res) => {
 router.post('/merge-vxt', (req, res) => {
   const merge = db.transaction(() => {
     const candidates = db.prepare('SELECT * FROM staging_entries WHERE needs_call_time = 1').all();
-    const matchStmt = db.prepare("SELECT * FROM staging_entries WHERE source = 'vxt' AND matter = ? AND date = ?");
+    // needs_call_time = 0 required on the VXT side too — excludes VXT rows that are themselves
+    // unconfirmed estimates (so an estimate can never get blessed as ground truth), and as a
+    // side effect excludes the candidate matching itself when the candidate is VXT-sourced.
+    const matchStmt = db.prepare("SELECT * FROM staging_entries WHERE source = 'vxt' AND matter = ? AND date = ? AND needs_call_time = 0");
     const updateStmt = db.prepare('UPDATE staging_entries SET duration = ?, needs_call_time = 0 WHERE id = ?');
     const merged = [];
     const ambiguous = [];
