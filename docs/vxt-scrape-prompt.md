@@ -118,6 +118,50 @@ appears to happen once, upstream, in the scrape, rather than being left for `par
 attorney-client isolation instructions to catch downstream (though `parse-vxt` also carries that
 instruction independently, as defense in depth).
 
+## Corrections for the next scrape run
+
+Two issues surfaced by diffing the three real output files against each other (see "Observed
+output contract" above), confirmed against the actual raw call lengths embedded in the Kerry/
+Ifeoma notes' parenthetical timestamps. Both are decided fixes, not open questions — apply these
+as new instructions the next time the Claude-in-Chrome scrape prompt is written or re-run. Since
+the original prompt text lives outside this repo (see the disclaimer at the top of this file),
+these are instructions to *add*, not a diff against text this repo has access to.
+
+### 1. `Client/Matter hint` — always `Surname (matter#)`, never bare
+
+Kerry's file used `Surname (matter#)`, Farah's used `Surname (matter#-Surname)`, Ifeoma's
+sometimes dropped the matter number entirely (bare `Gill`, `Marshall`). `parse-vxt`'s fuzzy
+surname matching absorbed all three variants without error this session, but the bare-surname
+form leaves zero explicit fallback if a surname is ever ambiguous across two matters. Add to the
+scrape prompt:
+
+> Whenever a client can be identified for a call or text, format the hint as exactly
+> `Surname (matter#)` (e.g. `Evans (00039)`), using the matter number from the active matters
+> list — never emit a bare surname with no matter number. If no matter can be confidently
+> identified, use `Davidson Internal` rather than a partial or ambiguous guess.
+
+### 2. Duration — short-call floor stays exactly as-is; everything ≥30 min becomes fully proportional
+
+**Decision: the sub-30-minute floor bands are a deliberate minimum-increment convention and are
+NOT changing** — under 6 min → 0.1 hr, 6–18 min → 0.2 hr, 19–30 min → 0.3 hr, unchanged.
+
+What needed fixing is the ≥30-minute side, which had no documented rule at all — it happened to
+come out as plain proportional rounding in the samples (34:18 → 0.6, 49:25 → 0.8, 1:07:35 → 1.1,
+all matching `round(raw_minutes / 60, 1)` exactly) but nothing in the prompt guaranteed that would
+reproduce reliably on the next run. Making this explicit is the actual fix. Add to the scrape
+prompt:
+
+> Duration conversion has two regimes. Under 30 minutes, use the fixed floor bands above — do not
+> make these proportional. At 30 minutes or longer, floor bands stop applying entirely; instead
+> round the actual elapsed call time to the nearest 0.1 hour with full proportional precision
+> (e.g. a 34-minute call → 0.6 hr, a 49-minute call → 0.8 hr, a 1hr-8min call → 1.1 hr). Never
+> apply a floor band to a call 30 minutes or longer.
+
+The in-repo `extract-screenshots` prompt (`routes/ai.js`, Panel B — screenshot-based VXT capture)
+carried the same undocumented gap and has already been corrected to match this same two-regime
+rule directly in code, so both the external scrape and the in-repo screenshot path now apply
+identical duration logic.
+
 ## Downstream contract (`routes/ai.js`, `POST /api/ai/parse-vxt`)
 
 The ingest prompt explicitly assumes the scrape has already done the recognition work described
