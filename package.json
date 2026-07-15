@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "start:server": "PORT=3002 pm2 start server.js --name valigate",
+    "restart:server": "pm2 restart valigate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
