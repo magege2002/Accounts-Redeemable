@@ -918,6 +918,22 @@ async function parseVXT() {
   }
 }
 
+async function mergeVXT() {
+  try {
+    const { merged, ambiguous } = await api('POST', '/api/entries/merge-vxt', {});
+    for (const m of merged) {
+      const e = stagingEntries.find(x => x.id === m.id);
+      if (e) { e.duration = m.duration; e.needs_call_time = 0; }
+    }
+    renderStagingTable();
+    let msg = `Merged ${merged.length} calls`;
+    if (ambiguous.length) msg += ` · ${ambiguous.length} ambiguous — check flagged rows`;
+    _showSimpleToast(msg);
+  } catch (e) {
+    _showSimpleToast(`Error: ${e.message}`);
+  }
+}
+
 async function attachVXTFile() {
   return new Promise(resolve => {
     const input = document.createElement('input');
@@ -3381,6 +3397,7 @@ function renderStagingTable() {
     const isCloned   = e.source === 'cloned';
     const isSplit    = e.source === 'split';
     const isCallLog  = e.source === 'call_log';
+    const isNeedsCallTime = !!e.needs_call_time;
 
     const isEditLocked = _editingLocks.has(e.id);
     const rowClass = (isDupe ? 'duplicate' : isInClio ? 'clio-match' : (isReview ? 'needs-review' : (e.status === 'Approved' ? 'approved' : (e.status === 'Ready' ? 'ready' : ''))))
@@ -3407,6 +3424,7 @@ function renderStagingTable() {
     if (isWiseTime)    systemFlags += '<span class="badge badge-wisetime" title="WiseTime entry — advisory only">WiseTime</span>';
     if (isCloned)      systemFlags += '<span class="badge badge-wisetime" title="Cloned from an Approved entry — review before export">Cloned</span>';
     if (isCallLog)     systemFlags += '<span class="badge badge-error" title="Possible call log — VXT may have already logged this call">Call Log</span>';
+    if (isNeedsCallTime) systemFlags += '<span class="badge badge-callnotes" title="Time-less call note — waiting on a matching VXT entry to backfill duration">Awaiting Call Time</span>';
     const statusBadge     = `<div class="status-cell">${systemFlags}${statusSelect}</div>`;
     const isApproved      = e.status === 'Approved';
     const isNR            = e.status === 'Needs Review';

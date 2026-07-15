@@ -89,6 +89,35 @@ router.put('/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM staging_entries WHERE id = ?').get(req.params.id));
 });
 
+router.post('/merge-vxt', (req, res) => {
+  const merge = db.transaction(() => {
+    const candidates = db.prepare('SELECT * FROM staging_entries WHERE needs_call_time = 1').all();
+    // needs_call_time = 0 required on the VXT side too — excludes VXT rows that are themselves
+    // unconfirmed estimates (so an estimate can never get blessed as ground truth), and as a
+    // side effect excludes the candidate matching itself when the candidate is VXT-sourced.
+    const matchStmt = db.prepare("SELECT * FROM staging_entries WHERE source = 'vxt' AND matter = ? AND date = ? AND needs_call_time = 0");
+    const updateStmt = db.prepare('UPDATE staging_entries SET duration = ?, needs_call_time = 0 WHERE id = ?');
+    const merged = [];
+    const ambiguous = [];
+    for (const candidate of candidates) {
+      // ponytail: per-candidate independent matching, no cross-candidate consumption-tracking —
+      // the same VXT entry could satisfy two different time-less Panel A rows on the same
+      // matter/day. Acceptable given current data shape; upgrade only if duplicate-matching
+      // is actually observed in practice.
+      const matches = matchStmt.all(candidate.matter, candidate.date);
+      if (matches.length === 1) {
+        updateStmt.run(matches[0].duration, candidate.id);
+        merged.push({ id: candidate.id, duration: matches[0].duration });
+      } else if (matches.length > 1) {
+        ambiguous.push({ entry: candidate, candidates: matches });
+      }
+      // zero matches: no-op, not reported
+    }
+    return { merged, ambiguous };
+  });
+  res.json(merge());
+});
+
 router.delete('/all', (req, res) => {
   db.prepare('DELETE FROM staging_entries').run();
   res.json({ ok: true });

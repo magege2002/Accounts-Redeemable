@@ -329,7 +329,10 @@ Active matters: ${matterList}
 MISSED CALL (red arrow pointing down): Ignore entirely. Create NO entry.
 
 ANSWERED CALL (shows a timestamp such as "8:23"):
-- Convert the timestamp to decimal hours: under 6 min → 0.1 · 6–18 min → 0.2 · 19–30 min → 0.3
+- Convert the timestamp to decimal hours. Under 30 minutes, use the fixed floor bands (a
+  deliberate minimum-increment convention — do not make these proportional): under 6 min → 0.1 ·
+  6–18 min → 0.2 · 19–30 min → 0.3. At 30 minutes or longer, floor bands stop applying — instead
+  round the actual elapsed time to the nearest 0.1 hour (e.g. 34 min → 0.6, 49 min → 0.8, 1hr 8min → 1.1).
 - Category: "Notes — Timed"
 - Description: "Call notes w/ Kerry re: [primary client matter visible in surrounding message context]"
 - Matter: infer from client names visible anywhere in the surrounding conversation. If no client reference is visible, use the Davidson Internal matter from the active matter list.
