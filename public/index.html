@@ -213,7 +213,10 @@
   <div class="card" style="padding:0">
     <div id="stagingTableHeader" style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:600;color:var(--navy);font-size:14px">Staging Table</div>
-      <button class="btn btn-ghost btn-sm" onclick="clearStaging()">Clear All</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="mergeVXT()">🔗 Merge VXT Calls</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearStaging()">Clear All</button>
+      </div>
     </div>
     <div id="captureSearchBar" class="staging-search-bar">
       <div class="search-input-wrap">
