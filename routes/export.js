@@ -3,8 +3,13 @@ const router = express.Router();
 const db = require('../db/database');
 const PROC_SUFFIX_RE = require('./proc-suffix');
 
+// Collapse embedded newlines before quoting. A multi-line quoted field is legal RFC4180
+// (and parses fine), but Clio's bulk importer and any spreadsheet round-trip handle it
+// badly — and an invoice description should be one line regardless. The May 2026 export
+// shipped two rows split across lines this way; this is the funnel that prevents it,
+// including for rows already stored with newlines.
 function q(v) {
-  return `"${String(v).replace(/"/g, '""')}"`;
+  return `"${String(v).replace(/\s*\r?\n\s*/g, ' ').replace(/"/g, '""')}"`;
 }
 
 function safeCategory(e) {

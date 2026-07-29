@@ -52,7 +52,8 @@ call-shaped (`CALL_LANG_RE` match) but has no real duration yet — see merge-vx
 
 ## `source` values — actually observed in `staging_entries` (sqlite query, this session)
 
-`call_log, manual, panel_a, panel_b, quick_add, split, vxt` — 245 rows total. **Do not assume
+`call_log, manual, panel_a, panel_b, quick_add, split, vxt` — observed across the May–July 2026
+cycles (staging is emptied after each export, so a live count means little). **Do not assume
 a source list from memory or from `public/app.js` alone**: `app.js` also branches on
 `wisetime`, `cloned`, and `panel_d` (badge/UI logic for those exists) but **none of those values
 have ever been persisted** in the current DB — they're legacy or forward-looking code paths, not
@@ -98,5 +99,13 @@ algorithm and live-test evidence. UI: "🔗 Merge VXT Calls" button in the Stagi
   tracking, so in theory one VXT row could satisfy two different `needs_call_time` rows on the
   same matter/day. Flagged with a `// ponytail:` comment in `routes/entries.js`; acceptable
   given current data shape, upgrade only if duplicate-matching is actually observed.
-- `db/ar.db-shm` / `db/ar.db-wal` show up as modified in `git status` after any sqlite read —
-  this is normal WAL churn, not a real change; fine to leave uncommitted or commit either way.
+- **`db/ar.db-shm` / `db/ar.db-wal` are now gitignored — never re-add them.** They used to be
+  tracked, which is a genuine footgun: a `git checkout`/`pull` can drop a stale WAL next to a
+  live `ar.db`, and SQLite will apply those frames as if they were current. Superseded advice in
+  an earlier version of this file called committing them harmless — it isn't.
+- **The dev server runs under pm2 as `valigate` on port 3002** (`npm run start:server`,
+  `pm2 restart valigate` after any server-side edit). `.env` deliberately has no `PORT` line so
+  pm2's `PORT=3002` wins; plain `npm start` still falls back to 3000 for throwaway dev.
+- **An empty `staging_entries` is normal, not data loss.** The billing cycle is export →
+  `archive_cycles` row → "Clear All". Check `archive_cycles` before ever concluding data is
+  missing: after the July 2026 cycle, staging was 0 while cycles 7–9 held the exported CSVs.

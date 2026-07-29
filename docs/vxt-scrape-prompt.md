@@ -118,6 +118,53 @@ appears to happen once, upstream, in the scrape, rather than being left for `par
 attorney-client isolation instructions to catch downstream (though `parse-vxt` also carries that
 instruction independently, as defense in depth).
 
+## MEASURED RESULTS — the 2026-05-26 → 2026-07-14 cycle (read this first)
+
+The scrape's output was validated against what Michael **actually invoiced**: archive cycle 7
+(`archive_cycles.id = 7`, July 2026 activities, 166 entries, 64.8 hrs, $2,761, exported
+2026-07-15). Matching the 79 scrape blocks against those 166 exported rows by matter+date gives
+the only honest scorecard we have:
+
+| Measure | Result |
+|---|---|
+| Scrape blocks that reached the invoice | **73 / 79 (92%)** — precision is good |
+| Blocks dropped by hand before export | 6 (5 Davidson Internal, 1 Marshall) |
+| Durations corrected by hand | 5 of 73 (all Davidson Internal; both directions, no systematic band error) |
+| **Billed entries the scrape never produced** | **93 of 166 (56%)** — recall is the real problem |
+| Double-billed rows across the May and July exports | **0** (verified by exact-row comparison) |
+
+**The output quality is not the problem — the coverage is.** Three distinct causes, in order of
+cost, each needing a different fix:
+
+1. **Only internal team DMs were scraped (Kerry / Ifeoma / Farah).** Every client call and every
+   third-party call was missed: litigation funders (High Rise Financial, Direct Legal Funding,
+   ClaimAngel, Rockpoint), banks, opposing counsel, courts, medical providers. Evans alone
+   accounted for 29 hand-entered rows, most of them funding calls. These calls *are* in VXT — they
+   just aren't in a DM thread. **Fixed in V3** by defaulting coverage to the whole call log.
+
+2. **Un-attributable calls were defaulted to `Davidson Internal`.** On days where every call came
+   back labeled internal-firm, the real work turned out to be Bradley, Marshall, Gore and Alfonso
+   matters that had to be re-entered by hand. Firm-internal time silently absorbed client time.
+   **Fixed in V3** by making `unknown` + an `[UNATTRIBUTED]` tag the fallback, so those rows surface
+   for triage instead of disappearing into 00044-Davidson.
+
+3. **Desk work is invisible to a phone system.** Roughly a quarter of the hand-entered rows — and
+   nearly all the *large* ones (1.5, 2.0, 3.0, 3.4, 4.6, 6.0 hr blocks for automation, dashboard
+   work, Bates stamping, file organization, HIPAA research) — are work VXT structurally cannot see.
+   **This is not fixable in the scrape and V3 explicitly tells it not to try.** That work has to
+   come from the Apple Notes path (`~/Documents/Automations/Compile Work Notes.command` → Panel A).
+   Judge the scrape on communications coverage only; judge total coverage on the two paths together.
+
+**Consequence for `merge-vxt`:** cause 2 also blunts the merge feature. It matches on matter+date,
+so a VXT row mis-labeled `Davidson Internal` can never match a Panel A call note filed under the
+real client matter. V3's `unknown` fallback doesn't fix this by itself — an `unknown` row has no
+matter to match on either. Treat merge-vxt as useful only for calls the scrape attributed
+correctly, and expect the rest to stay manual until the two paths are reconciled more directly.
+See `docs/vxt-merge-design.md`.
+
+**The runnable prompt is `~/Downloads/VXT Scrape V3.md`** (V1 and V2 kept alongside it for
+history). V3 folds in everything below plus the three fixes above.
+
 ## Corrections for the next scrape run
 
 Two issues surfaced by diffing the three real output files against each other (see "Observed

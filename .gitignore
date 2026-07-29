@@ -2,3 +2,5 @@
 node_modules/
 uploads/
 db/ar.db
+db/ar.db-shm
+db/ar.db-wal
