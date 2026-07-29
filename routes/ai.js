@@ -482,6 +482,13 @@ Priority order: (1) explicit date in block → (2) today (${today}) as last reso
 === MATTER MATCHING ===
 Match matter numbers from the active list by client surname or case context. If unclear, leave empty and set needsReview: true.
 
+=== UNATTRIBUTED / UNKNOWN BLOCKS ===
+If the "Client/Matter hint" is "unknown", or the note carries an [UNATTRIBUTED: ...] or [VERIFY: ...] tag,
+leave matter empty and set needsReview: true. Never guess a matter for these — the scrape emits those
+markers precisely because it could not confirm one, and a guess here silently misattributes billable time.
+Preserve any [call: participant, MM:SS] metadata in raw_note; it is how the attorney reconciles the entry
+against their own notes. Never copy those bracketed tags into the description field.
+
 === ATTORNEY-CLIENT DESCRIPTION ISOLATION ===
 Each entry's description must contain ONLY information relevant to that specific client. Never include another client's name, matter, or case details in description.
 

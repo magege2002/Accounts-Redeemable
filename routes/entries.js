@@ -15,7 +15,9 @@ function sanitize(e) {
     client:       String(e.client       || ''),
     date:         String(e.date         || new Date().toISOString().slice(0, 10)),
     duration:     parseFloat(e.duration)   || 0.1,
-    description:  String(e.description  || '').replace(PROC_SUFFIX_RE, '').trim(),
+    // newlines collapsed here too (not just in export's q()) so multi-line descriptions
+    // never reach storage — same both-layers pattern already used for PROC_SUFFIX_RE
+    description:  String(e.description  || '').replace(/\s*\r?\n\s*/g, ' ').replace(PROC_SUFFIX_RE, '').trim(),
     category:     VALID_CATEGORIES.includes(e.category) ? e.category : 'Administrative',
     type:         e.type === 'Expense' ? 'Expense' : 'Time',
     rate:         parseFloat(e.rate)       || 0,
